@@ -267,9 +267,9 @@
 
 | 阶段 | 模块 | 状态 | 完成日期 |
 |------|------|------|----------|
-| 一 | vhuan-common | 设计中 | — |
-| 一 | vhuan-proto | 待开始 | — |
-| 一 | vhuan-gateway | 待开始 | — |
+| 一 | vhuan-common | 已完成 | 2026-08-05 |
+| 一 | vhuan-proto | 已完成 | 2026-08-05 |
+| 一 | vhuan-gateway | 设计中 | — |
 | 二 | vhuan-auth | 待开始 | — |
 | 二 | vhuan-tenant | 待开始 | — |
 | 二 | vhuan-agent | 待开始 | — |

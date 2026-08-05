@@ -101,5 +101,58 @@
 
 ---
 
-> **版本**: v1.0.0  
+## 6. 第一阶段设计总结（基础设施）
+
+> 以下决策来自第一阶段三个模块的详细设计，后续模块必须遵循。
+
+### 6.1 vhuan-common — 公共基础设施
+
+| 决策 | 结论 |
+|------|------|
+| 统一响应体 | 复用 **Graceful Response**，Controller 自动包装，`BizException` 通过 `@ExceptionMapper` 声明式映射 |
+| 异常枚举 | `BizErrorCode` 实现 `GracefulResponseEnumInterface`，按模块划分错误码区间（1000-1999 公共，2000-2999 auth，以此类推） |
+| 全局异常处理 | **不写 GlobalExceptionHandler**，Graceful Response 的 `@ExceptionMapper` 已覆盖参数校验异常和兜底异常 |
+| 工具类 | **全部复用 Hutool**：`IdUtil`（雪花 ID）、`DateUtil`（日期）、`StrUtil`（字符串）、`Assert`（断言）、`CollUtil`（集合）、`JSONUtil`（JSON） |
+| 雪花 ID | 使用 Hutool `IdUtil.getSnowflake(workerId, datacenterId)`，workerId 从 Nacos/K8s 环境变量注入 |
+| 分页模型 | 复用 MyBatis-Flex 的 `Page<T>`，不自定义 `PageQuery`/`PageResult` |
+| 租户上下文 | `TenantContext` 使用 JDK Record（不可变），`TenantContextHolder` 使用 **Scoped Values**（非 ThreadLocal），适配虚拟线程 |
+| 依赖边界 | `vhuan-common` 不依赖 MyBatis-Flex、Nacos、Redis；`BaseEntity` 不含 ORM 注解，由业务模块子类添加 |
+
+### 6.2 vhuan-proto — gRPC 契约定义
+
+| 决策 | 结论 |
+|------|------|
+| Proto 管理 | 统一模块 `vhuan-proto`，单一事实来源，其他模块通过 Maven 依赖引用 |
+| 租户上下文传递 | 通过 **gRPC Metadata**（`tenant-id`、`tenant-name`、`plan-code`），客户端/服务端拦截器统一处理，不在 message 中重复携带 |
+| 音频流 | `call ↔ ai-engine` 使用 **单 stream + oneof** 模式，一条 Bidirectional Stream 承载所有会话事件（音频帧/转写/意图/TTS/控制指令） |
+| 号码下发 | `campaign → call` 使用 **Client Streaming**，批次头 + 号码明细流式推送 |
+| 监控推送 | `ai-engine → call → WebSocket → 前端`，ai-engine 不直接暴露给前端 |
+| 指标上报 | `analytics` 同时提供 **Unary**（单条上报）和 **Client Streaming**（批量上报）两种方式 |
+| 端口策略 | gRPC 与 HTTP 端口分离：call=9100, ai-engine=9101, analytics=9102，独立防火墙和负载均衡 |
+| 文件拆分 | 按通信场景拆分为 5 个 `.proto`：common / call_engine / campaign_call / engine_monitor / analytics |
+
+### 6.3 vhuan-gateway — API 网关
+
+| 决策 | 结论 |
+|------|------|
+| 路由配置 | YAML + **Nacos 动态刷新**，修改路由无需重启 |
+| 过滤器链 | 顺序：TraceId（-3）→ 请求日志（-2）→ CORS（-1）→ **JWT 认证（0）** → 租户注入（1） |
+| 白名单 | `/api/auth/**`、`/v3/api-docs/**`、`/doc.html`、`/actuator/health` |
+| 内部调用 | `/api/internal/**` 路径通过 `X-Internal-Call` Token 校验，**不走 JWT** |
+| 限流 | 四维度：全局 10000 QPS、租户按套餐分档、接口级（登录 100 次/分钟/IP）、IP 级 100 QPS |
+| 文档聚合 | Knife4j 基于服务发现自动聚合，`http://gateway:8080/doc.html` |
+| 运行模式 | **WebFlux（Netty）**，不引入 Tomcat；`vhuan-common` 依赖需排除 `spring-boot-starter-web` |
+| 限流方案 | Sentinel Gateway 专用适配器，规则持久化到 Nacos |
+
+### 6.4 全局约束
+
+- HTTP 同步调用使用 `@HttpExchange`（Spring 6 内置），不引入 OpenFeign
+- gRPC 仅用于流式场景（音频流、批量下发、监控推送、指标上报），常规 CRUD 走 HTTP
+- 所有 Proto 文件统一在 `vhuan-proto` 模块中管理，禁止各服务自行定义
+- 租户上下文在 HTTP 中用 `X-Tenant-Id` 请求头传递，在 gRPC 中用 Metadata 传递，在 Kafka 中用消息体 `tenant_id` 字段传递
+- Gateway 不处理 gRPC 流量、WebSocket 流量、SIP 信令
+
+---
+
+> **版本**: v1.1.0  
 > **日期**: 2026-08-05
