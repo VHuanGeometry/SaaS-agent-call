@@ -2,9 +2,9 @@
 
 > **模块**: vhuan-common（公共模块）  
 > **阶段**: 第一阶段 — 基础设施  
-> **版本**: v1.0.0  
+> **版本**: v1.1.0  
 > **日期**: 2026-08-05  
-> **状态**: 设计中
+> **状态**: 已实现（与 I2026-08-05 实现版本对齐，反映 graceful-response 3.4.0-boot3 实际 API 差异）
 
 ---
 
@@ -33,8 +33,8 @@
 ```
 com.vhuan.common
 ├── exception                   # 异常体系（基于 Graceful Response）
-│   ├── BizException.java       # 业务异常（@ExceptionMapper 注解）
-│   └── BizErrorCode.java       # 业务错误码枚举（实现 GracefulResponseEnumInterface）
+│   ├── BizException.java       # 业务异常（继承 GracefulResponseException，动态传入 code/msg）
+│   └── BizErrorCode.java       # 业务错误码枚举（普通枚举，graceful-response 3.4.0 无 GracefulResponseEnumInterface）
 │
 ├── context                     # 租户上下文
 │   ├── TenantContext.java      # 上下文数据结构 (Record)
@@ -68,18 +68,16 @@ com.vhuan.common
 
 ### 3.1 设计思路
 
-Graceful Response 提供了 `@ExceptionMapper` 注解，将自定义异常映射为统一响应。本模块只需定义：
-- `BizErrorCode` 枚举，实现 `GracefulResponseEnumInterface`
-- `BizException`，使用 `@ExceptionMapper` 声明映射关系
+Graceful Response 3.4.0-boot3 提供 `GracefulResponseException(String code, String msg)` 作为异常基类，框架的 `GlobalExceptionAdvice` 自动捕获该类异常并将其 code/msg 写入统一响应体。本模块只需定义 `BizErrorCode` 枚举（code/msg 载体）和 `BizException`（继承 `GracefulResponseException`），无需使用 `@ExceptionMapper` 注解。
 
-Graceful Response 会自动处理 Controller 层的包装和异常转换，无需再写 `GlobalExceptionHandler`。
+> **实现偏差说明**：graceful-response 3.4.0-boot3 中不存在 `GracefulResponseEnumInterface` 接口，且 `@ExceptionMapper` 的 code 为静态值无法承载动态错误码。因此改为 BizException 继承 `GracefulResponseException`，构造时动态传入 `BizErrorCode` 的 code 与 msg。
 
 ### 3.2 BizErrorCode 枚举
 
-实现 Graceful Response 的 `com.feiniaojin.gracefulresponse.api.GracefulResponseEnumInterface` 接口：
+普通枚举，作为 code 和 msg 的载体，不实现任何框架接口：
 
 ```java
-public enum BizErrorCode implements GracefulResponseEnumInterface {
+public enum BizErrorCode {
 
     // ========== 公共错误码 1000-1999 ==========
     SUCCESS(0, "操作成功"),
@@ -106,31 +104,29 @@ public enum BizErrorCode implements GracefulResponseEnumInterface {
         this.msg = msg;
     }
 
-    @Override
     public int getCode() { return code; }
-
-    @Override
     public String getMsg() { return msg; }
 }
 ```
 
-**扩展方式**：各业务模块在自己的枚举中实现同一接口，错误码按区间分配，避免冲突。
+**扩展方式**：各业务模块按区间定义自己的枚举，后续随模块扩展可考虑抽取公共接口。
 
 ### 3.3 BizException
 
+继承 `com.feiniaojin.gracefulresponse.GracefulResponseException`，构造时动态传入 code（String）与 msg：
+
 ```java
-@ExceptionMapper(code = "1004", msg = "系统内部错误", httpStatus = HttpStatus.INTERNAL_SERVER_ERROR)
-public class BizException extends RuntimeException {
+public class BizException extends GracefulResponseException {
 
     private final BizErrorCode errorCode;
 
     public BizException(BizErrorCode errorCode) {
-        super(errorCode.getMsg());
+        super(String.valueOf(errorCode.getCode()), errorCode.getMsg());
         this.errorCode = errorCode;
     }
 
     public BizException(BizErrorCode errorCode, String detail) {
-        super(errorCode.getMsg() + "：" + detail);
+        super(String.valueOf(errorCode.getCode()), errorCode.getMsg() + "：" + detail);
         this.errorCode = errorCode;
     }
 
@@ -145,11 +141,12 @@ public class BizException extends RuntimeException {
 throw new BizException(BizErrorCode.PARAM_INVALID, "手机号格式错误");
 throw new BizException(BizErrorCode.RESOURCE_NOT_FOUND);
 
-// Graceful Response 自动将异常映射为：
-// { "code": 1001, "msg": "参数校验失败：手机号格式错误", "data": null }
+// Graceful Response 的 GlobalExceptionAdvice 自动捕获 GracefulResponseException：
+// 读取 getCode() 和 getMsg()，包装为统一响应体
+// { "code": "1001", "msg": "参数校验失败：手机号格式错误", "data": null }
 ```
 
-**不需要 GlobalExceptionHandler**：Graceful Response 的 `@ExceptionMapper` 已覆盖参数校验异常（`MethodArgumentNotValidException` → `1001`）和兜底异常（`Exception` → `1004`），无需再写全局异常处理器。
+**不需要 GlobalExceptionHandler**：Graceful Response 的 `GlobalExceptionAdvice` 自动捕获 `GracefulResponseException`（读取 code/msg），参数校验异常和兜底异常由框架默认处理。
 
 ### 3.4 错误码区间分配
 
@@ -173,9 +170,10 @@ throw new BizException(BizErrorCode.RESOURCE_NOT_FOUND);
 
 ### 4.1 设计要点
 
-- 使用 **JDK 21 Scoped Values** 替代 ThreadLocal，解决虚拟线程场景下的上下文传播问题
+- 使用 **JDK 21 Scoped Values**（`java.lang.ScopedValue`）替代 ThreadLocal，解决虚拟线程场景下的上下文传播问题
 - `TenantContext` 为不可变 Record，线程安全
 - 提供 `TenantContextHolder` 静态方法供全链路使用
+- **TODO**：ScopedValue 在 JDK 21 为预览特性，需 `--enable-preview` 编译标志；JDK 24 转正后移除
 
 ### 4.2 TenantContext（Record）
 

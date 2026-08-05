@@ -13,6 +13,7 @@
     <artifactId>vhuan</artifactId>
     <packaging>pom</packaging>
     <modules>
+        <module>vhuan-common</module>
     </modules>
     <version>1.0.0-SNAPSHOT</version>
 
@@ -38,6 +39,8 @@
         <redisson.version>3.27.2</redisson.version>
         <!-- jjwt：JWT Token 生成与解析（兼容 Spring Boot 3.x / Java 21） -->
         <jjwt.version>0.12.6</jjwt.version>
+        <!-- Hutool：国产 Java 工具类库，覆盖日期/字符串/断言/集合/JSON/加密等通用工具需求 -->
+        <hutool.version>5.8.29</hutool.version>
     </properties>
 
     <dependencyManagement>
@@ -140,6 +143,12 @@
                 <groupId>io.jsonwebtoken</groupId>
                 <artifactId>jjwt-jackson</artifactId>
                 <version>${jjwt.version}</version>
+            </dependency>
+            <!-- Hutool：通用工具类库（雪花ID、日期、字符串、断言、集合、JSON、加密等） -->
+            <dependency>
+                <groupId>cn.hutool</groupId>
+                <artifactId>hutool-all</artifactId>
+                <version>${hutool.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

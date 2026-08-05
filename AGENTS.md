@@ -109,13 +109,13 @@
 
 | 决策 | 结论 |
 |------|------|
-| 统一响应体 | 复用 **Graceful Response**，Controller 自动包装，`BizException` 通过 `@ExceptionMapper` 声明式映射 |
-| 异常枚举 | `BizErrorCode` 实现 `GracefulResponseEnumInterface`，按模块划分错误码区间（1000-1999 公共，2000-2999 auth，以此类推） |
-| 全局异常处理 | **不写 GlobalExceptionHandler**，Graceful Response 的 `@ExceptionMapper` 已覆盖参数校验异常和兜底异常 |
+| 统一响应体 | 复用 **Graceful Response**，Controller 自动包装，`BizException` 继承 `GracefulResponseException(code, msg)` 动态传入错误码 |
+| 异常枚举 | `BizErrorCode` 为普通枚举（graceful-response 3.4.0 无 `GracefulResponseEnumInterface`），作为 code/msg 载体，按模块划分错误码区间（1000-1999 公共，2000-2999 auth，以此类推） |
+| 全局异常处理 | **不写 GlobalExceptionHandler**，Graceful Response 的 `GlobalExceptionAdvice` 自动捕获 `GracefulResponseException` 读取 code/msg，参数校验异常和兜底异常由框架默认处理 |
 | 工具类 | **全部复用 Hutool**：`IdUtil`（雪花 ID）、`DateUtil`（日期）、`StrUtil`（字符串）、`Assert`（断言）、`CollUtil`（集合）、`JSONUtil`（JSON） |
 | 雪花 ID | 使用 Hutool `IdUtil.getSnowflake(workerId, datacenterId)`，workerId 从 Nacos/K8s 环境变量注入 |
 | 分页模型 | 复用 MyBatis-Flex 的 `Page<T>`，不自定义 `PageQuery`/`PageResult` |
-| 租户上下文 | `TenantContext` 使用 JDK Record（不可变），`TenantContextHolder` 使用 **Scoped Values**（非 ThreadLocal），适配虚拟线程 |
+| 租户上下文 | `TenantContext` 使用 JDK Record（不可变），`TenantContextHolder` 使用 **Scoped Values**（`java.lang.ScopedValue`，非 ThreadLocal），适配虚拟线程。TODO：JDK 21 为预览特性，需 `--enable-preview`，JDK 24 转正后移除 |
 | 依赖边界 | `vhuan-common` 不依赖 MyBatis-Flex、Nacos、Redis；`BaseEntity` 不含 ORM 注解，由业务模块子类添加 |
 
 ### 6.2 vhuan-proto — gRPC 契约定义
@@ -154,5 +154,5 @@
 
 ---
 
-> **版本**: v1.1.0  
+> **版本**: v1.2.0  
 > **日期**: 2026-08-05
