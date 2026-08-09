@@ -260,10 +260,10 @@
 | 二 | vhuan-campaign | 设计中 | — |
 | 二 | vhuan-call | 设计中 | — |
 | 二 | vhuan-ai-engine | 设计中 | — |
-| 三 | vhuan-contact | 待开始 | — |
-| 三 | vhuan-analytics | 待开始 | — |
-| 三 | vhuan-notification | 待开始 | — |
-| 三 | vhuan-sip-connector | 待开始 | — |
+| 三 | vhuan-contact | 设计中 | — |
+| 三 | vhuan-analytics | 设计中 | — |
+| 三 | vhuan-notification | 设计中 | — |
+| 三 | vhuan-sip-connector | 设计中 | — |
 
 ---
 
