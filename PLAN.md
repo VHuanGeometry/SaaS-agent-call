@@ -63,19 +63,20 @@
 
 ### 2.1 vhuan-auth（认证授权服务）
 
-**状态**: 待开始
+**状态**: 设计中
 
 **产出**：
 
 | 产出 | 内容 |
 |------|------|
-| 认证接口 | 登录（账号密码 / 手机验证码）、登出、Token 刷新 |
-| JWT 管理 | Access Token（30min）+ Refresh Token（7d）签发与校验 |
-| RBAC 权限 | 角色定义（平台管理员 / 租户管理员 / 主管 / 坐席）、权限树 |
-| 租户 API Key | 生成、校验、吊销 |
-| 数据表 | `sys_user`、`sys_role`、`sys_permission`、`tenant_api_key` |
+| 认证接口 | 登录（账号密码 / 手机验证码）、登出、Token 刷新、强制改密 |
+| JWT 管理 | Access Token（30min 无状态）+ Refresh Token（7d Redis 存储，登录时旋转） |
+| RBAC 权限 | 四级角色（平台管理员 / 租户管理员 / 主管 / 坐席）、权限树、`@RequirePermission` 注解 AOP |
+| 租户 API Key | 生成、校验（HMAC 签名防重放）、吊销 |
+| 登录安全 | BCrypt 加密、登录失败 5 次锁定 15min |
+| 数据表 | `sys_user`、`sys_role`、`sys_permission`、`sys_user_role`、`sys_role_permission`、`tenant_api_key` |
 
-**依赖**: `vhuan-common`、`vhuan-gateway`
+**依赖**: `vhuan-common`、`vhuan-notification`（短信验证码）、Nacos、Redis（Redisson）
 
 ---
 
@@ -252,13 +253,13 @@
 | 阶段 | 模块 | 状态 | 完成日期 |
 |------|------|------|----------|
 | 一 | vhuan-common | 已完成 | 2026-08-05 |
-| 一 | vhuan-gateway | 设计中 | — |
-| 二 | vhuan-auth | 待开始 | — |
-| 二 | vhuan-tenant | 待开始 | — |
-| 二 | vhuan-agent | 待开始 | — |
-| 二 | vhuan-campaign | 待开始 | — |
-| 二 | vhuan-call | 待开始 | — |
-| 二 | vhuan-ai-engine | 待开始 | — |
+| 一 | vhuan-gateway | 已完成 | 2026-08-09 |
+| 二 | vhuan-auth | 设计中 | — |
+| 二 | vhuan-tenant | 设计中 | — |
+| 二 | vhuan-agent | 设计中 | — |
+| 二 | vhuan-campaign | 设计中 | — |
+| 二 | vhuan-call | 设计中 | — |
+| 二 | vhuan-ai-engine | 设计中 | — |
 | 三 | vhuan-contact | 待开始 | — |
 | 三 | vhuan-analytics | 待开始 | — |
 | 三 | vhuan-notification | 待开始 | — |

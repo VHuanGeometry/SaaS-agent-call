@@ -2,9 +2,9 @@
 
 > **模块**: vhuan-gateway（API 网关）  
 > **阶段**: 第一阶段 — 基础设施  
-> **版本**: v1.0.0  
-> **日期**: 2026-08-05  
-> **状态**: 设计中
+> **版本**: v1.1.0  
+> **日期**: 2026-08-09  
+> **状态**: 已完成
 
 ---
 
@@ -478,6 +478,18 @@ public class SentinelConfig {
 }
 ```
 
+### 5.4 错误响应格式规范
+
+Gateway 基于 WebFlux 运行，**不经过** `vhuan-common` 中 Graceful Response 的 MVC 全局异常处理（`GlobalExceptionAdvice` 仅对 Spring MVC 生效）。因此 Gateway 自身的鉴权、限流、内部调用校验错误需**手动构造**统一错误响应，但响应结构与业务服务保持一致（`{code, message, data}`），前端可统一解析。
+
+| 场景 | HTTP 状态码 | code | 来源 |
+|------|-------------|------|------|
+| 缺少/无效 Token | 401 | 2001 | auth 区间（与 `BizErrorCode` 对齐） |
+| 非法的内部调用 | 401 | 2001 | auth 区间 |
+| 限流触发 | 429 | 1005 | 公共区间（与 `BizErrorCode` 对齐） |
+
+**注意**：Gateway 的错误码需与 `vhuan-common` 的 `BizErrorCode` 错误码区间约定保持一致（公共 1000-1999、auth 2000-2999），避免与下游业务异常码冲突。此处手动构造，不抛 `GracefulResponseException`。
+
 ---
 
 ## 6. CORS 配置
@@ -622,6 +634,32 @@ gateway-routes.yml（Nacos 配置中心）
 ├── 新增/下线服务时只需修改 Nacos 配置
 └── 配合 spring.cloud.gateway.routes 刷新机制
 ```
+
+### 8.3 健康检查与优雅停机
+
+```yaml
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true          # 启用 K8s 探针（/actuator/health/liveness、/readiness）
+  health:
+    redis:
+      enabled: false           # Gateway 不依赖 Redis，避免健康检查误报
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s   # 优雅停机最大等待 30s
+```
+
+- 接入 K8s `startupProbe` / `readinessProbe` / `livenessProbe`，`/actuator/health` 已加入白名单
+- 优雅停机：`server.shutdown: graceful`，确保进行中的请求处理完再下线
+- 指标通过 `/actuator/prometheus` 暴露给 Prometheus 采集
 
 ---
 
@@ -768,6 +806,9 @@ knife4j:
 - [ ] 路由配置支持 Nacos 动态刷新，无需重启
 - [ ] Knife4j 文档聚合可通过 `/doc.html` 访问
 - [ ] 健康检查 `/actuator/health` 在白名单中
+- [ ] Gateway 错误响应手动构造 `{code, message, data}`，与 `BizErrorCode` 错误码区间对齐
+- [ ] Gateway 不引入 `GracefulResponseException`（WebFlux 不经过 MVC 全局异常处理）
+- [ ] 配置 `server.shutdown: graceful` 优雅停机与 K8s 健康探针
 
 ---
 
