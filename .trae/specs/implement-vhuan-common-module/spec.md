@@ -2,7 +2,7 @@
 
 ## Why
 
-`vhuan-common` 是所有微服务模块的编译依赖与基础设施底座，必须先行稳定。本 spec 基于 `design/vhuan-common.md` 详细设计文档，将设计落地为可编译、可复用的 Maven 模块代码，为后续 `vhuan-proto`、`vhuan-gateway`、`vhuan-auth` 等模块提供统一异常体系、租户上下文、基础实体、常量与公共自动配置。
+`vhuan-common` 是所有微服务模块的编译依赖与基础设施底座，必须先行稳定。本 spec 基于 `design/vhuan-common.md` 详细设计文档，将设计落地为可编译、可复用的 Maven 模块代码，为后续 `vhuan-gateway`、`vhuan-auth` 等模块提供统一异常体系、租户上下文、基础实体、常量与公共自动配置。RPC 层已采用 Apache Dubbo 3 + Triple 协议（Java 接口契约），无独立 `vhuan-proto` 模块。
 
 设计原则：
 - 零业务逻辑，仅提供基础设施抽象

@@ -21,7 +21,7 @@
 - CORS：统一处理跨域
 
 **非职责**（不归 Gateway 管）：
-- gRPC 流量（走独立端口，不经过 Gateway）
+- Dubbo 流量（走独立端口，不经过 Gateway）
 - WebSocket 流量（直连 `call-service` 的 netty-socketio 端口）
 - SIP 信令（走独立 SIP Proxy）
 
@@ -71,7 +71,7 @@ vhuan-gateway/
 | knif4j-docs | `/v3/api-docs/**`, `/doc.html` | 各服务 | 否 | Knife4j 文档聚合，白名单 |
 
 **说明**：
-- `ai-engine-service` 不对外暴露 HTTP 接口，仅通过 gRPC 与 `call-service` 通信，因此不在路由表中
+- `ai-engine-service` 不对外暴露 HTTP 接口，仅通过 Dubbo（Triple 协议）与 `call-service` 通信，因此不在路由表中
 - `/api/internal/**` 路径保留，供服务间 @HttpExchange 调用使用，仅放行服务间内部流量（通过 `X-Internal-Call` 请求头校验，不走 JWT 校验）
 
 ### 3.2 路由配置示例

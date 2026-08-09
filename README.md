@@ -70,24 +70,24 @@
 | 通信场景 | 方式 | 说明 |
 |----------|------|------|
 | 同步调用（CRUD） | @HttpExchange（Spring 声明式 HTTP 接口）+ Sentinel | 常规查询、配置获取、管理后台操作 |
-| 高性能 RPC | gRPC（Protobuf） | 流式数据传输、批量任务下发、高频指标采集 |
+| 高性能 RPC | Dubbo（Triple 协议） | 流式数据传输、批量任务下发、高频指标采集 |
 | 异步消息 | Kafka | 通话状态变更、任务流转、数据埋点 |
 | 实时推送 | WebSocket（netty-socketio） | 通话监控面板、坐席切听 |
-| 服务发现 | Nacos | 注册、发现、配置中心 |
+| 服务发现 | Nacos | Dubbo 服务注册与发现、配置中心 |
 
-### 2.3 gRPC 与 @HttpExchange 的选型边界
+### 2.3 Dubbo 与 @HttpExchange 的选型边界
 
 | 通信类型 | 选型 | 典型场景 |
 |----------|------|----------|
 | 常规 CRUD | @HttpExchange | 租户管理、话术配置、名单查询、报表拉取 |
-| 双向流 | gRPC Bidirectional Streaming | call ↔ ai-engine：音频流推送 + 实时转写流回传 |
-| 客户端流 | gRPC Client Streaming | campaign → call：一批下发 1000+ 号码 |
-| 服务端流 | gRPC Server Streaming | ai-engine → 监控面板：逐句推送转写结果 |
-| 高频指标采集 | gRPC Unary / Client Streaming | analytics：通话状态指标实时上报 |
+| 双向流 | Dubbo Triple BIDIRECTIONAL_STREAM | call ↔ ai-engine：音频流推送 + 实时转写流回传 |
+| 客户端流 | Dubbo Triple CLIENT_STREAM | campaign → call：一批下发 1000+ 号码 |
+| 服务端流 | Dubbo Triple SERVER_STREAM | ai-engine → 监控面板：逐句推送转写结果 |
+| 高频指标采集 | Dubbo Triple UNARY / CLIENT_STREAM | analytics：通话状态指标实时上报 |
 
 **选型理由**：
-- CRUD 走 @HttpExchange 是因为数据库查询耗时占端到端延迟的 80% 以上，序列化差异被淹没，而 HTTP 生态（Gateway 路由、Knife4j 文档、curl 调试）的开发效率远高于 gRPC
-- 流式场景走 gRPC 是功能性刚需 — HTTP 请求-响应模型无法承载双向流音频传输，Protobuf 的二进制编码在流式大数据量下体积优势显著
+- CRUD 走 @HttpExchange 是因为数据库查询耗时占端到端延迟的 80% 以上，序列化差异被淹没，而 HTTP 生态（Gateway 路由、Knife4j 文档、curl 调试）的开发效率远高于 RPC
+- 流式场景走 Dubbo Triple（基于 HTTP/2）是功能性刚需 — HTTP 请求-响应模型无法承载双向流音频传输，Triple 协议基于 HTTP/2 具备全双工流式能力，且原生支持 Java 接口定义，无需 `.proto` IDL
 
 ---
 
@@ -122,23 +122,23 @@
         └──────────┘ └──────────┘  │  -svc    │
                                    └────┬─────┘
                               ┌─────────┼─────────┐
-                              │ gRPC    │@HttpExch│@HttpExch
-                              │(Client  │  ange   │  ange
-                              │ Stream) │         │
+                              │ Dubbo   │@HttpExch│@HttpExch
+                              │(CLIENT  │  ange   │  ange
+                              │ STREAM) │         │
                               ▼         ▼         ▼
                         ┌──────────┐ ┌──────┐ ┌──────────┐
                         │call-svc  │ │agent │ │contact   │
                         └────┬─────┘ │-svc  │ │  -svc    │
                              │       └──┬───┘ └──────────┘
-                             │gRPC      │@HttpExchange
-                             │(Bidi)    │
+                             │Dubbo     │@HttpExchange
+                             │(BIDI)    │
                              ▼          ▼
                         ┌──────────┐ ┌──────────┐
                         │ai-engine │ │analytics │
                         │  -svc    │ │  -svc    │
                         └──────────┘ └──────────┘
                              │
-                             │gRPC (Server Stream)
+                             │Dubbo (SERVER STREAM)
                              ▼
                       ┌──────────────┐
                       │  监控面板     │
@@ -147,9 +147,9 @@
 ```
 
 **核心调用链**：
-- `campaign → call`：gRPC Client Streaming，批量下发号码
-- `call ↔ ai-engine`：gRPC Bidirectional Streaming，音频流推送 + 转写流回传
-- `ai-engine → 监控面板`：gRPC Server Streaming，逐句推送转写结果
+- `campaign → call`：Dubbo Triple CLIENT_STREAM，批量下发号码
+- `call ↔ ai-engine`：Dubbo Triple BIDIRECTIONAL_STREAM，音频流推送 + 转写流回传
+- `ai-engine → 监控面板`：Dubbo Triple SERVER_STREAM，逐句推送转写结果
 - 其余服务间调用（租户查询、话术获取、名单拉取）走 `@HttpExchange`，天然兼容 Gateway 路由和 Knife4j 文档
 - 通话过程中 `call-service` 通过 Kafka 事件驱动 `analytics-service` 和 `notification-service` 进行准实时统计与通知
 
@@ -349,7 +349,7 @@
 | 微服务治理 | Spring Cloud + Nacos | 2023.x / 2.3.2 | 服务发现、配置中心 |
 | API 网关 | Spring Cloud Gateway | — | 统一入口、鉴权、限流 |
 | 声明式 HTTP 客户端 | @HttpExchange（Spring Framework 6） | — | 内置，替代 OpenFeign，与虚拟线程原生兼容 |
-| 高性能 RPC | gRPC + Protobuf | 1.64+ | 流式音频传输、批量任务下发、高频指标采集 |
+| 高性能 RPC | Dubbo 3 + Triple 协议 | 3.2.x | 基于 HTTP/2，支持全双工流式（Java 接口定义，无需 IDL） |
 | ORM | MyBatis-Flex | 1.9.5 | 已集成，轻量级，支持多租户插件 |
 | 对象映射 | MapStruct | 1.5.5 | 已集成，编译期生成 |
 | 数据库 | PostgreSQL | 16+ | 多 Schema 租户隔离 |
@@ -539,8 +539,7 @@ call.created → call.answered → call.asr.partial → call.nlu.intent
 
 ```
 vhuan/
-├── vhuan-common/                 # 公共模块：DTO、工具类、异常定义
-├── vhuan-proto/                  # Proto 定义模块：gRPC 接口 .proto 文件 + 编译生成代码
+├── vhuan-common/                 # 公共模块：DTO、工具类、异常定义、Dubbo 接口契约基类
 ├── vhuan-gateway/                # API 网关
 ├── vhuan-auth/                   # 认证授权服务
 ├── vhuan-tenant/                 # 租户管理服务
@@ -553,6 +552,8 @@ vhuan/
 ├── vhuan-notification/           # 通知服务
 └── vhuan-sip-connector/          # SIP 连接器（独立部署，对接运营商）
 ```
+
+**Dubbo 服务契约说明**：Dubbo 服务接口（Interface）与 DTO 定义在**被调用方服务模块**内，由调用方通过 Maven 依赖引用。例如 `CallEngineService` 接口定义在 `vhuan-ai-engine` 模块，`vhuan-call` 依赖 `vhuan-ai-engine` 后通过 `@DubboReference` 调用。
 
 ---
 

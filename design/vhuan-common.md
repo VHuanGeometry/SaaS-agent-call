@@ -221,7 +221,7 @@ HTTP 请求 → Gateway（解析 JWT，注入 X-Tenant-Id）
 Kafka 消息 → 消费者（从消息体解析 tenantId）
           → ScopedValue.where(CONTEXT, context).run(() -> { ... })
 
-gRPC 请求 → 拦截器（从 Metadata 读取 tenant-id）
+Dubbo 请求 → Filter（从 RpcContext / Attachment 读取 tenant-id）
          → ScopedValue.where(CONTEXT, context).run(() -> { ... })
 ```
 
@@ -473,4 +473,4 @@ public class JacksonConfig {
 
 ---
 
-> **下一步**：本设计确认后，进入 `vhuan-proto` 详细设计。
+> **下一步**：本设计确认后，进入 `vhuan-gateway` 详细设计（RPC 层已采用 Dubbo 3 + Triple 协议，无独立 proto 模块）。

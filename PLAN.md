@@ -38,25 +38,7 @@
 
 ---
 
-### 1.2 vhuan-proto（Proto 定义模块）
-
-**状态**: 待开始
-
-**产出**：
-
-| 产出 | 内容 |
-|------|------|
-| 公共 Proto | `common.proto`：统一分页、统一响应、租户上下文 |
-| call-engine Proto | `call_engine.proto`：Bidirectional Streaming 定义（音频帧、转写结果、NLU 结果、TTS 指令） |
-| campaign-call Proto | `campaign_call.proto`：Client Streaming 定义（批量号码下发） |
-| engine-monitor Proto | `engine_monitor.proto`：Server Streaming 定义（转写流推送） |
-| analytics Proto | `analytics.proto`：高频指标上报 |
-
-**依赖**: `vhuan-common`
-
----
-
-### 1.3 vhuan-gateway（API 网关）
+### 1.2 vhuan-gateway（API 网关）
 
 **状态**: 待开始
 
@@ -72,6 +54,8 @@
 **依赖**: `vhuan-common`
 
 ---
+
+> **说明**：RPC 层采用 **Apache Dubbo 3 + Triple 协议**。服务契约使用纯 Java 接口定义（`@DubboService` / `@DubboReference`），DTO 定义在被调用方模块内由调用方引用。Triple 协议基于 HTTP/2，支持全双工流式（BIDIRECTIONAL_STREAM / CLIENT_STREAM / SERVER_STREAM），注册中心复用 Nacos。已移除独立 `vhuan-proto` 模块，无需 `.proto` IDL。
 
 ## 第二阶段：核心业务链路
 
@@ -142,11 +126,11 @@
 | 任务管理 | 创建任务（选择 Agent + 话术 + 名单）、启停、暂停/恢复 |
 | 批次管理 | 名单分批、号码分配策略（顺序/随机/权重） |
 | 调度策略 | 定时外呼、预测式外呼、预览式外呼 |
-| 号码下发 | 通过 gRPC Client Streaming 向 `call-service` 批量下发号码 |
+| 号码下发 | 通过 Dubbo Triple CLIENT_STREAM 向 `call-service` 批量下发号码 |
 | 重试策略 | 未接通号码的重试次数、间隔、时段限制 |
 | 数据表 | `campaign`、`campaign_batch`、`campaign_detail` |
 
-**依赖**: `vhuan-common`、`vhuan-agent`、`vhuan-contact`、`vhuan-proto`
+**依赖**: `vhuan-common`、`vhuan-agent`、`vhuan-contact`
 
 ---
 
@@ -161,13 +145,13 @@
 | 通话状态机 | 状态枚举（Idle → Dialing → Ringing → Answered → InProgress → Ended）及转换规则 |
 | SIP 信令 | 对接 `sip-connector`，发起 Invite、处理响应、挂断 |
 | 媒体流管理 | 音频流接收/转发、RTP 包处理 |
-| AI 引擎交互 | 通过 gRPC Bidirectional Streaming 推送音频、接收转写 + TTS 指令 |
+| AI 引擎交互 | 通过 Dubbo Triple BIDIRECTIONAL_STREAM 推送音频、接收转写 + TTS 指令 |
 | 坐席介入 | 监听（订阅转写流）、切入（媒体流切换）、切出（恢复 AI） |
 | 录音管理 | 录音启动/停止、文件上传 MinIO |
 | 并发控制 | 租户并发通道校验、分配/释放 |
 | 数据表 | `call_session`、`call_recording`、`call_transcript`、`call_intent_result`、`call_slot` |
 
-**依赖**: `vhuan-common`、`vhuan-proto`、`vhuan-tenant`
+**依赖**: `vhuan-common`、`vhuan-ai-engine`、`vhuan-tenant`
 
 ---
 
@@ -184,10 +168,10 @@
 | 对话管理 | 话术状态机执行引擎、上下文记忆管理、多轮策略 |
 | TTS 模块 | 流式语音合成、多音色适配、SSML 支持 |
 | 模型路由 | 按租户/场景/成本路由到不同模型实例 |
-| gRPC 接口 | Bidirectional Streaming 对接 `call-service`、Server Streaming 推送转写到监控面板 |
+| Dubbo 接口 | BIDIRECTIONAL_STREAM 对接 `call-service`、SERVER_STREAM 推送转写到监控面板 |
 | 会话管理 | 虚拟线程绑定，每个通话会话一个虚拟线程，Scoped Values 传递租户上下文 |
 
-**依赖**: `vhuan-common`、`vhuan-proto`、`vhuan-agent`
+**依赖**: `vhuan-common`、`vhuan-agent`
 
 ---
 
@@ -220,12 +204,12 @@
 
 | 产出 | 内容 |
 |------|------|
-| 实时统计 | 当日通话量、接通率、转化率、意向分布（通过 Kafka 消费 + gRPC 指标接收） |
+| 实时统计 | 当日通话量、接通率、转化率、意向分布（通过 Kafka 消费 + Dubbo Triple 指标接收） |
 | 离线报表 | 日报/周报/月报生成、任务维度报表、坐席绩效 |
 | 大屏数据 | 实时大屏数据接口 |
 | 数据表 | `report_daily`、`report_campaign` |
 
-**依赖**: `vhuan-common`、`vhuan-proto`、Kafka 事件定义（来自 `call-service`）
+**依赖**: `vhuan-common`、Kafka 事件定义（来自 `call-service`）
 
 ---
 
@@ -268,7 +252,6 @@
 | 阶段 | 模块 | 状态 | 完成日期 |
 |------|------|------|----------|
 | 一 | vhuan-common | 已完成 | 2026-08-05 |
-| 一 | vhuan-proto | 已完成 | 2026-08-05 |
 | 一 | vhuan-gateway | 设计中 | — |
 | 二 | vhuan-auth | 待开始 | — |
 | 二 | vhuan-tenant | 待开始 | — |

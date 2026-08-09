@@ -4,7 +4,7 @@ package com.vhuan.common.context;
  * 租户上下文
  * <p>
  * 使用 JDK 21 Record 实现，不可变、线程安全。
- * 承载当前请求/任务所属租户与操作人信息，供全链路（HTTP/gRPC/Kafka）传递。
+ * 承载当前请求/任务所属租户与操作人信息，供全链路（HTTP/Dubbo/Kafka）传递。
  * </p>
  *
  * @param tenantId   租户 ID

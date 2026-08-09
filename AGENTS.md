@@ -118,18 +118,23 @@
 | 租户上下文 | `TenantContext` 使用 JDK Record（不可变），`TenantContextHolder` 使用 **Scoped Values**（`java.lang.ScopedValue`，非 ThreadLocal），适配虚拟线程。TODO：JDK 21 为预览特性，需 `--enable-preview`，JDK 24 转正后移除 |
 | 依赖边界 | `vhuan-common` 不依赖 MyBatis-Flex、Nacos、Redis；`BaseEntity` 不含 ORM 注解，由业务模块子类添加 |
 
-### 6.2 vhuan-proto — gRPC 契约定义
+### 6.2 vhuan-proto → Dubbo RPC 契约
+
+> **注意**：已将 RPC 框架从 gRPC 更换为 **Apache Dubbo 3 + Triple 协议**，并删除独立 `vhuan-proto` 模块。以下为 Dubbo 的契约设计约束。
 
 | 决策 | 结论 |
 |------|------|
-| Proto 管理 | 统一模块 `vhuan-proto`，单一事实来源，其他模块通过 Maven 依赖引用 |
-| 租户上下文传递 | 通过 **gRPC Metadata**（`tenant-id`、`tenant-name`、`plan-code`），客户端/服务端拦截器统一处理，不在 message 中重复携带 |
-| 音频流 | `call ↔ ai-engine` 使用 **单 stream + oneof** 模式，一条 Bidirectional Stream 承载所有会话事件（音频帧/转写/意图/TTS/控制指令） |
-| 号码下发 | `campaign → call` 使用 **Client Streaming**，批次头 + 号码明细流式推送 |
+| 服务契约 | 使用 **纯 Java 接口** 定义（`@DubboService` / `@DubboReference`），DTO 定义在**被调用方服务模块**内，由调用方通过 Maven 依赖引用，**无需 `.proto` IDL** |
+| 协议 | **Triple**（基于 HTTP/2），支持全双工流式（BIDIRECTIONAL_STREAM / CLIENT_STREAM / SERVER_STREAM），兼容 gRPC 生态 |
+| 流式 API | 使用 `org.apache.dubbo.common.stream.StreamObserver<T>`；双向流/客户端流：方法返回 `StreamObserver`，服务端流：方法第 2 个参数为 `StreamObserver` |
+| 租户上下文传递 | 通过 **Dubbo RpcContext / Attachment** 或 Triple 协议头传递（`tenant-id`、`tenant-name`、`plan-code`），服务端 `Filter` 统一解析，不在 DTO 中重复携带 |
+| 注册中心 | 复用 **Nacos**，Dubbo 服务自动注册与发现 |
+| 服务治理 | 内置负载均衡、限流、熔断、重试，无需额外中间件 |
+| 音频流 | `call ↔ ai-engine` 使用 **BIDIRECTIONAL_STREAM**（方法签名：`StreamObserver<CallRequest> processCall(StreamObserver<CallResponse> response)`） |
+| 号码下发 | `campaign → call` 使用 **CLIENT_STREAM** |
 | 监控推送 | `ai-engine → call → WebSocket → 前端`，ai-engine 不直接暴露给前端 |
-| 指标上报 | `analytics` 同时提供 **Unary**（单条上报）和 **Client Streaming**（批量上报）两种方式 |
-| 端口策略 | gRPC 与 HTTP 端口分离：call=9100, ai-engine=9101, analytics=9102，独立防火墙和负载均衡 |
-| 文件拆分 | 按通信场景拆分为 5 个 `.proto`：common / call_engine / campaign_call / engine_monitor / analytics |
+| 指标上报 | `analytics` 使用 **UNARY**（单条）与 **CLIENT_STREAM**（批量）两种方式 |
+| 端口策略 | Dubbo 端口与 HTTP 端口分离，独立防火墙和负载均衡 |
 
 ### 6.3 vhuan-gateway — API 网关
 
@@ -147,10 +152,11 @@
 ### 6.4 全局约束
 
 - HTTP 同步调用使用 `@HttpExchange`（Spring 6 内置），不引入 OpenFeign
-- gRPC 仅用于流式场景（音频流、批量下发、监控推送、指标上报），常规 CRUD 走 HTTP
-- 所有 Proto 文件统一在 `vhuan-proto` 模块中管理，禁止各服务自行定义
-- 租户上下文在 HTTP 中用 `X-Tenant-Id` 请求头传递，在 gRPC 中用 Metadata 传递，在 Kafka 中用消息体 `tenant_id` 字段传递
-- Gateway 不处理 gRPC 流量、WebSocket 流量、SIP 信令
+- RPC 使用 **Dubbo 3 + Triple 协议**（Java 接口契约），仅用于流式场景（音频流、批量下发、监控推送、指标上报），常规 CRUD 走 HTTP；**不再使用 gRPC，也不存在独立 proto 模块**
+- Dubbo 服务接口（Interface）与 DTO 定义在被调用方服务模块内，调用方通过 Maven 依赖引用
+- 租户上下文在 HTTP 中用 `X-Tenant-Id` 请求头传递，在 Dubbo 中用 RpcContext/Attachment 传递，在 Kafka 中用消息体 `tenant_id` 字段传递
+- Gateway 不处理 Dubbo 流量、WebSocket 流量、SIP 信令
+- Dubbo 流式方法统一使用 `org.apache.dubbo.common.stream.StreamObserver<T>`，禁止混用其他流式 API
 
 ---
 
