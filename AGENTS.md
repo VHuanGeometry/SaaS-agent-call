@@ -162,3 +162,14 @@
 
 > **版本**: v1.2.0  
 > **日期**: 2026-08-05
+## 7. vhuan-gateway 修复记录（2026-08-12）
+
+网关实现要点，后续模块与网关相关改动需遵循：
+
+- WebFlux 中修改请求头必须 `exchange.mutate().request(builder.build()).build()` 重建 exchange，仅 `getRequest().mutate().header(...)` 不会生效（AuthGlobalFilter / TenantContextFilter / TraceIdFilter 均已按此修正）
+- gateway 依赖 vhuan-common 时必须排除 spring-boot-starter-web 与 graceful-response，否则 classpath 同时存在 MVC 与 WebFlux 会令 WebApplicationType 误判为 Servlet 导致启动失败
+- JWT 解析放在 vhuan-gateway.util.JwtUtil（jjwt 0.12，parser().verifyWith(key)），密钥来自 jwt.secret；Gateway 只解析不签发，Token 由 vhuan-auth 生成
+- 鉴权白名单从 gateway.security.whitelist-paths（@ConfigurationProperties）读取，禁止硬编码在过滤器里；路径前缀匹配放行
+- CORS 统一走 spring.cloud.gateway.globalcors（yml），不再自定义 WebFilter，避免与内置 CorsWebFilter 重复/冲突
+- Sentinel 使用 spring-cloud-alibaba-sentinel-gateway（网关专用适配器），编程式加载全局/登录/IP 限流规则；租户维度规则经 Nacos gw-flow 数据源热更新
+- discoveryWarmer 预热的服务名必须与路由 lb:// 标识一致（当前为 vhuan-auth 等 9 个服务）

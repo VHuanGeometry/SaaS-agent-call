@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.vhuan</groupId>
+        <artifactId>vhuan</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>vhuan-gateway</artifactId>
+
+    <properties>
+        <maven.compiler.source>21</maven.compiler.source>
+        <maven.compiler.target>21</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- Spring Cloud Gateway（基于 WebFlux 响应式模型，自动排斥 spring-boot-starter-web） -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud Alibaba Nacos Discovery（服务发现，lb:// 依赖此组件） -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+
+        <!-- Spring Cloud LoadBalancer：Gateway 的 lb:// URI 依赖此组件
+             做 HTTP 层服务实例的负载均衡选择。
+             spring-cloud-starter-gateway 只会传递 spring-cloud-loadbalancer 纯库依赖，
+             不显式添加 starter 则 ReactiveLoadBalancer.Factory<ServiceInstance> Bean
+             不会被自动配置，导致请求走 NoLoadBalancerClientFilter 并返回 503。 -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
+        <!-- Sentinel Gateway 限流适配器（适配 WebFlux 响应式模型）：
+             提供 GatewayFlowRule / GatewayParamFlowItem / GatewayApiDefinitionManager 等
+             网关维度的限流 API，并对请求进行限流过滤。 -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-sentinel-gateway</artifactId>
+        </dependency>
+
+        <!-- Sentinel Nacos 数据源：限流规则持久化到 Nacos，支持热更新 -->
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-nacos</artifactId>
+        </dependency>
+
+        <!-- jjwt：JWT 生成与解析（api 编译期依赖，impl/jackson 运行时依赖） -->
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Hutool：通用工具类库（StrUtil/JSONUtil/IdUtil 等），从 vhuan-common 传递，
+             此处显式声明以保证 gateway 独立可编译 -->
+        <dependency>
+            <groupId>cn.hutool</groupId>
+            <artifactId>hutool-all</artifactId>
+        </dependency>
+
+        <!-- Spring Boot Actuator（健康检查与路由元信息端点） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <!-- vhuan-common：仅复用常量类（HeaderConstants / SystemConstants）
+             注意：必须排除 spring-boot-starter-web 与 graceful-response——
+             Gateway 基于 WebFlux（Netty），若 MVC 相关依赖出现在 classpath，
+             WebApplicationType 会误判为 Servlet 应用导致启动失败；
+             graceful-response 的全局异常处理仅对 MVC 生效，Gateway 手动构造统一响应，无需引入。 -->
+        <dependency>
+            <groupId>com.vhuan</groupId>
+            <artifactId>vhuan-common</artifactId>
+            <version>1.0.0-SNAPSHOT</version>
+            <scope>compile</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-web</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.feiniaojin</groupId>
+                    <artifactId>graceful-response</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+    </dependencies>
+</project>
