@@ -8,6 +8,8 @@ import com.vhuan.gateway.util.JwtUtil;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -37,6 +39,8 @@ import java.util.Map;
  */
 @Component
 public class AuthGlobalFilter implements GlobalFilter, Ordered {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthGlobalFilter.class);
 
     /** 内部服务调用路径前缀（通过 X-Internal-Call 校验，不走 JWT） */
     private static final String INTERNAL_PREFIX = "/api/internal/";
@@ -111,11 +115,18 @@ public class AuthGlobalFilter implements GlobalFilter, Ordered {
 
     /**
      * 校验内部服务调用 Token。
-     * 内部调用 Token 由 Nacos 配置中心统一管理，各服务启动时读取（TODO: 接入 Nacos 后替换占位符）。
+     * Token 从 gateway.security.internal-call-token 读取（由环境变量注入），
+     * 未配置时默认拒绝并记录 WARN，绝不用可预测的占位符兜底。
      */
     private Mono<Void> validateInternalCall(ServerWebExchange exchange, GatewayFilterChain chain) {
-        String internalToken = exchange.getRequest().getHeaders().getFirst(INTERNAL_CALL_HEADER);
-        if (!"{{internal-call-token}}".equals(internalToken)) {
+        String expected = securityProperties.getInternalCallToken();
+        if (StrUtil.isBlank(expected)) {
+            log.warn("[Gateway] 内部调用 Token 未配置，拒绝内部调用路径 {}", exchange.getRequest().getURI().getPath());
+            return unauthorized(exchange, "内部调用未开放");
+        }
+
+        String actual = exchange.getRequest().getHeaders().getFirst(INTERNAL_CALL_HEADER);
+        if (!expected.equals(actual)) {
             return unauthorized(exchange, "非法的内部调用");
         }
         return chain.filter(exchange);

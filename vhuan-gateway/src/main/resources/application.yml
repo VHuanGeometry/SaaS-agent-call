@@ -173,6 +173,9 @@ jwt:
 # 网关安全配置
 gateway:
   security:
+    # 服务间内部调用的共享 Token（/api/internal/** 校验用，由环境变量注入）
+    # 生产环境必须通过环境变量 INTERNAL_CALL_TOKEN 注入，未配置时内部调用将被拒绝
+    internal-call-token: ${INTERNAL_CALL_TOKEN:}
     # 鉴权白名单路径（无需 JWT 即可访问）
     # 支持前缀匹配：** 匹配多级路径，* 匹配单级路径
     whitelist-paths:
