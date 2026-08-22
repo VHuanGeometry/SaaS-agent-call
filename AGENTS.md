@@ -173,3 +173,5 @@
 - CORS 统一走 spring.cloud.gateway.globalcors（yml），不再自定义 WebFilter，避免与内置 CorsWebFilter 重复/冲突
 - Sentinel 使用 spring-cloud-alibaba-sentinel-gateway（网关专用适配器），编程式加载全局/登录/IP 限流规则；租户维度规则经 Nacos gw-flow 数据源热更新
 - discoveryWarmer 预热的服务名必须与路由 lb:// 标识一致（当前为 vhuan-auth 等 9 个服务）
+- Nacos 配置中心使用 `spring.config.import` 显式声明 dataId（`optional:nacos:${spring.application.name}.yaml`、`optional:nacos:vhuan-shared.yaml`）；`spring.cloud.nacos.config.shared-configs`/`extension-configs` 仅在 bootstrap 模式生效，`spring.config.import` 模式下不会被加载，共享配置必须放进 import 列表（vhuan-gateway 已按此修正）
+- **vhuan-gateway 配置中心迁移（2026-08-22）**：已迁至 Nacos `vhuan-gateway.yaml`（命名空间 vhuan、DEFAULT_GROUP、YAML）的配置：`spring.cloud.gateway.routes`（11 条路由）、`spring.cloud.gateway.globalcors`、`gateway.security.whitelist-paths`、`logging.level`，完整参考内容存放于仓库 `config/vhuan-gateway.yaml`，可直接整段粘贴到 Nacos 控制台；以上均支持热更新免重启。**保留本地不可迁移**：`server.port`、`spring.application.name`、Nacos 连接配置（discovery/config）、`gateway.security.internal-call-token`（环境变量注入）、`spring.cloud.sentinel`、`management`、`graceful-response`。白名单属性类 `GatewaySecurityProperties` 已加 `@RefreshScope` 支持热更新；`jwt.secret` 属启动期常量（JwtUtil 缓存为 SecretKey），不加 `@RefreshScope`

@@ -1,6 +1,7 @@
 package com.vhuan.gateway.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -9,11 +10,12 @@ import java.util.List;
 /**
  * 网关安全配置属性
  * <p>
- * 绑定 application.yml 中 {@code gateway.security} 前缀下的配置项，
- * 使鉴权白名单可从配置文件动态管理，而非硬编码在过滤器里。
+ * 绑定配置中心中 {@code gateway.security} 前缀下的配置项（白名单已迁移至 Nacos vhuan-gateway.yaml），
+ * 使鉴权白名单可从配置中心动态管理，而非硬编码在过滤器里。
  * </p>
  */
 @Component
+@RefreshScope
 @ConfigurationProperties(prefix = "gateway.security")
 public class GatewaySecurityProperties {
 

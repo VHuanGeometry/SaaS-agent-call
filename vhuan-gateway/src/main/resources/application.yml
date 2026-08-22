@@ -9,12 +9,17 @@ spring:
     nacos:
       discovery:
         server-addr: 127.0.0.1:8848
-        namespace: public
-    # Spring Cloud Gateway 路由配置（使用显式 routes，不依赖 discovery locator）
+        namespace: vhuan
+      config:
+        server-addr: 127.0.0.1:8848
+        namespace: vhuan
+        group: DEFAULT_GROUP
+        file-extension: yaml
+    # Spring Cloud Gateway 路由配置（显式 routes 已迁移至 Nacos，不依赖 discovery locator）
     gateway:
       discovery:
         locator:
-          enabled: false  # 关闭默认的自动服务发现路由，使用下方显式 routes
+          enabled: false  # 关闭默认的自动服务发现路由，路由统一由 Nacos vhuan-gateway.yaml 提供
       # ── 全局 HTTP 客户端配置（Reactor Netty）
       # connect-timeout / response-timeout 给首次冷启动（LoadBalancer 拉取服务列表 +
       # HTTP 连接池初始化）留出充足时间，避免"第一遍超时第二遍才通"的问题。
@@ -25,105 +30,7 @@ spring:
           type: fixed              # 固定大小连接池
           max-connections: 50      # 最大连接数
           acquire-timeout: 10000   # 从连接池获取连接的超时时间（毫秒）
-      # ── 全局 CORS 配置（开发环境允许 http://localhost:* / http://127.0.0.1:*）──
-      globalcors:
-        cors-configurations:
-          '[/**]':
-            allowedOriginPatterns:
-              - "http://localhost:*"
-              - "http://127.0.0.1:*"
-            allowedMethods: "*"
-            allowedHeaders: "*"
-            allowCredentials: true
-            maxAge: 3600
-
-      routes:
-        # ========== 认证服务（白名单） ==========
-        - id: auth-route
-          uri: lb://vhuan-auth
-          predicates:
-            - Path=/api/auth/**
-          filters:
-            - StripPrefix=0
-
-        # ========== 租户管理 ==========
-        - id: tenant-route
-          uri: lb://vhuan-tenant
-          predicates:
-            - Path=/api/tenant/**
-          filters:
-            - StripPrefix=0
-
-        # ========== Agent 配置 ==========
-        - id: agent-route
-          uri: lb://vhuan-agent
-          predicates:
-            - Path=/api/agent/**
-          filters:
-            - StripPrefix=0
-
-        # ========== 外呼任务 ==========
-        - id: campaign-route
-          uri: lb://vhuan-campaign
-          predicates:
-            - Path=/api/campaign/**
-          filters:
-            - StripPrefix=0
-
-        # ========== 通话管理 ==========
-        - id: call-route
-          uri: lb://vhuan-call
-          predicates:
-            - Path=/api/call/**
-          filters:
-            - StripPrefix=0
-
-        # ========== 客户线索 ==========
-        - id: contact-route
-          uri: lb://vhuan-contact
-          predicates:
-            - Path=/api/contact/**
-          filters:
-            - StripPrefix=0
-
-        # ========== 数据分析 ==========
-        - id: analytics-route
-          uri: lb://vhuan-analytics
-          predicates:
-            - Path=/api/analytics/**
-          filters:
-            - StripPrefix=0
-
-        # ========== 通知管理 ==========
-        - id: notification-route
-          uri: lb://vhuan-notification
-          predicates:
-            - Path=/api/notification/**
-          filters:
-            - StripPrefix=0
-
-        # ========== SIP 线路管理 ==========
-        - id: sip-route
-          uri: lb://vhuan-sip-connector
-          predicates:
-            - Path=/api/sip/**
-          filters:
-            - StripPrefix=0
-
-        # ========== Knife4j 文档聚合 ==========
-        - id: api-docs-auth
-          uri: lb://vhuan-auth
-          predicates:
-            - Path=/v3/api-docs/auth
-          filters:
-            - RewritePath=/v3/api-docs/auth, /v3/api-docs
-
-        - id: api-docs-tenant
-          uri: lb://vhuan-tenant
-          predicates:
-            - Path=/v3/api-docs/tenant
-          filters:
-            - RewritePath=/v3/api-docs/tenant, /v3/api-docs
+      # ── 路由 / CORS 配置已迁移至 Nacos（vhuan-gateway.yaml，热更新免重启）──
 
     # Sentinel 限流
     sentinel:
@@ -134,11 +41,19 @@ spring:
         gw-flow:
           nacos:
             server-addr: ${NACOS_ADDR:127.0.0.1:8848}
-            namespace: public
+            namespace: vhuan
             data-id: vhuan-gateway-sentinel
             group-id: DEFAULT_GROUP
             data-type: json
             rule-type: gw-flow
+  config:
+    import:
+      # 通过 spring.config.import 显式声明要加载的 Nacos 配置源
+      # （shared-configs/extension-configs 仅 bootstrap 模式生效，import 模式不会加载）
+      # 应用自身配置：vhuan-gateway.yaml
+      - optional:nacos:${spring.application.name}.yaml
+      # 共享配置：gateway 与 auth 共用同一份 jwt 密钥
+      - optional:nacos:vhuan-shared.yaml
 
 
 # Actuator：暴露健康检查与网关路由元信息端点
@@ -153,22 +68,9 @@ management:
     health:
       show-details: always
 
-# 日志配置
-logging:
-  level:
-    root: WARN
-    com.vhuan: debug
-    org.springframework.cloud.gateway: debug
-    com.alibaba.nacos: ERROR
+# 日志级别已迁移至 Nacos（vhuan-gateway.yaml 的 logging.level，动态调整免重启）
 
-# JWT 配置（密钥后续将迁移到 Nacos 配置中心）
-jwt:
-  # HS256 算法要求密钥长度 >= 32 字节（256 位）
-  secret: vhuan-trpg-jwt-secret-key-2026-please-change-in-production-environment
-  # Access Token 过期时间（小时），短期有效，配合 refresh token 实现无感续期
-  access-expire-hours: 2
-  # Refresh Token 过期时间（小时），7 天 = 168 小时，用于刷新 access token
-  refresh-expire-hours: 168
+
 
 # 网关安全配置
 gateway:
@@ -176,18 +78,7 @@ gateway:
     # 服务间内部调用的共享 Token（/api/internal/** 校验用，由环境变量注入）
     # 生产环境必须通过环境变量 INTERNAL_CALL_TOKEN 注入，未配置时内部调用将被拒绝
     internal-call-token: ${INTERNAL_CALL_TOKEN:}
-    # 鉴权白名单路径（无需 JWT 即可访问）
-    # 支持前缀匹配：** 匹配多级路径，* 匹配单级路径
-    whitelist-paths:
-      # 认证服务公开接口（登录/注册/刷新/验证码，auth 服务内部自管理）
-      - /api/auth/**
-      # 运维端点
-      - /actuator/health
-      # Swagger / Knife4j 文档端点
-      - /doc.html
-      - /swagger-ui/**
-      - /v3/api-docs/**
-      - /webjars/**
+    # 鉴权白名单已迁移至 Nacos（vhuan-gateway.yaml 的 gateway.security.whitelist-paths）
 graceful-response:
   response-style: 1
   # 是否打印异常日志，默认为false

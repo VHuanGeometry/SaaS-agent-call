@@ -1,0 +1,137 @@
+# ============================================================
+# Nacos 配置中心 —— vhuan-gateway.yaml
+# 创建位置：Nacos 控制台 → 配置管理 → 配置列表 → 新建配置
+#   命名空间：vhuan
+#   Data ID ：vhuan-gateway.yaml
+#   分组    ：DEFAULT_GROUP
+#   格式    ：YAML
+# 说明：本 dataId 中的配置支持热更新（改路由 / CORS / 白名单 / 日志级别，
+#       无需重启 gateway，保存后自动生效）。
+# ============================================================
+
+spring:
+  cloud:
+    gateway:
+      # ── 全局 CORS 配置（开发环境允许 http://localhost:* / http://127.0.0.1:*）──
+      # 生产环境请将 allowedOriginPatterns 改为实际前端域名
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:*"
+              - "http://127.0.0.1:*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
+            allowCredentials: true
+            maxAge: 3600
+
+      # ── 路由配置（Nacos 动态刷新，新增/调整路由无需重启 gateway）──
+      routes:
+        # 认证服务（白名单）
+        - id: auth-route
+          uri: lb://vhuan-auth
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+
+        # 租户管理
+        - id: tenant-route
+          uri: lb://vhuan-tenant
+          predicates:
+            - Path=/api/tenant/**
+          filters:
+            - StripPrefix=0
+
+        # Agent 配置
+        - id: agent-route
+          uri: lb://vhuan-agent
+          predicates:
+            - Path=/api/agent/**
+          filters:
+            - StripPrefix=0
+
+        # 外呼任务
+        - id: campaign-route
+          uri: lb://vhuan-campaign
+          predicates:
+            - Path=/api/campaign/**
+          filters:
+            - StripPrefix=0
+
+        # 通话管理
+        - id: call-route
+          uri: lb://vhuan-call
+          predicates:
+            - Path=/api/call/**
+          filters:
+            - StripPrefix=0
+
+        # 客户线索
+        - id: contact-route
+          uri: lb://vhuan-contact
+          predicates:
+            - Path=/api/contact/**
+          filters:
+            - StripPrefix=0
+
+        # 数据分析
+        - id: analytics-route
+          uri: lb://vhuan-analytics
+          predicates:
+            - Path=/api/analytics/**
+          filters:
+            - StripPrefix=0
+
+        # 通知管理
+        - id: notification-route
+          uri: lb://vhuan-notification
+          predicates:
+            - Path=/api/notification/**
+          filters:
+            - StripPrefix=0
+
+        # SIP 线路管理
+        - id: sip-route
+          uri: lb://vhuan-sip-connector
+          predicates:
+            - Path=/api/sip/**
+          filters:
+            - StripPrefix=0
+
+        # Knife4j 文档聚合
+        - id: api-docs-auth
+          uri: lb://vhuan-auth
+          predicates:
+            - Path=/v3/api-docs/auth
+          filters:
+            - RewritePath=/v3/api-docs/auth, /v3/api-docs
+
+        - id: api-docs-tenant
+          uri: lb://vhuan-tenant
+          predicates:
+            - Path=/v3/api-docs/tenant
+          filters:
+            - RewritePath=/v3/api-docs/tenant, /v3/api-docs
+
+# 网关安全配置（白名单路径，支持前缀匹配：** 多级路径，* 单级路径）
+gateway:
+  security:
+    whitelist-paths:
+      # 认证服务公开接口（登录/注册/刷新/验证码，auth 服务内部自管理）
+      - /api/auth/**
+      # 运维端点
+      - /actuator/health
+      # Swagger / Knife4j 文档端点
+      - /doc.html
+      - /swagger-ui/**
+      - /v3/api-docs/**
+      - /webjars/**
+
+# 日志级别（动态调整，免重启）
+logging:
+  level:
+    root: WARN
+    com.vhuan: debug
+    org.springframework.cloud.gateway: debug
+    com.alibaba.nacos: ERROR

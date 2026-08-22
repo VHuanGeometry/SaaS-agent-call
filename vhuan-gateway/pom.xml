@@ -29,6 +29,10 @@
             <groupId>com.alibaba.cloud</groupId>
             <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
 
         <!-- Spring Cloud LoadBalancer：Gateway 的 lb:// URI 依赖此组件
              做 HTTP 层服务实例的负载均衡选择。
